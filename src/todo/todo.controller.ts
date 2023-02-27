@@ -1,10 +1,11 @@
-import { Controller, Get, Param, Post } from '@nestjs/common';
-import { Body, Delete } from '@nestjs/common/decorators';
-import { TodoService } from './todo.service';
+import { Controller, Get, Param, Post, ValidationPipe } from '@nestjs/common';
+import { Body, Delete, Patch, Query, UsePipes } from '@nestjs/common/decorators';
+import { searchTodoDTO } from './searchTodoDTO';
+import { TodoService, TodoServiceV2 } from './todo.service';
 import { TodoAddDTO } from './TodoAddDTO';
 import { TodoEditDTO } from './TodoEditDTO';
 
-@Controller('todo')
+@Controller({path : 'todo', version : '1'})
 export class TodoController {
     constructor(private todoService : TodoService){}
     @Get()
@@ -13,6 +14,7 @@ export class TodoController {
     }
 
     @Post('/add')
+    @UsePipes(ValidationPipe)
     addTodo(@Body() addData : TodoAddDTO){
         this.todoService.add(addData);
         return this.todoService.findAll();
@@ -33,3 +35,46 @@ export class TodoController {
         return this.todoService.updateTodoByIndex(params.id,updateData)
     }
 }
+
+@Controller({path : 'todo', version : '2'})
+export class TodoControllerV2 {
+    constructor(private todoService : TodoServiceV2){}
+
+    @Get()
+    getTodos(@Query() queryParams : searchTodoDTO){
+        return this.todoService.findAll(queryParams);
+    }
+
+    @Post('/add')
+    @UsePipes(ValidationPipe)
+    addTodo(@Body() addData : TodoAddDTO){
+        this.todoService.add(addData);
+        return "Todo Added !";
+    }
+
+    @Post('/:id')
+    editTodoById(@Param() params,@Body() updateData : TodoEditDTO){ 
+        return this.todoService.updateTodo(params.id,updateData)
+    }
+
+    @Delete('/:id')
+    deleteTodoById(@Param() params){ 
+        return this.todoService.deleteTodo(params.id)
+    }
+
+    @Patch('/:id')
+    restoreTodoById(@Param() params){ 
+        return this.todoService.restoreTodo(params.id)
+    }
+
+    @Get('/stats')
+    todoStats(){
+        return this.todoService.statsTodo()
+    }
+
+    @Get('/:id')
+    getTodoById(@Param() params){
+        return this.todoService.todoById(params.id)
+    }
+}
+

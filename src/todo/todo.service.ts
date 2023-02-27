@@ -1,4 +1,8 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { FindOperator, Like, Repository } from 'typeorm';
+import { searchTodoDTO } from './searchTodoDTO';
+import { TodoEntity } from './todo.entity';
 import { TodoAddDTO } from './TodoAddDTO';
 import { TodoEditDTO } from './TodoEditDTO';
 import { TodoModel } from './TodoModel';
@@ -6,7 +10,8 @@ import { TodoStatusEnum } from './TodoStatusEnum';
 
 @Injectable()
 export class TodoService {
-    constructor(@Inject('randomID') private  randomID){}
+    constructor(@Inject('randomID') private  randomID, @InjectRepository(TodoEntity)
+    private readonly todoRepository: Repository<TodoEntity>,){}
     
     private todos = [
         new TodoModel(1,"Aller au marché","Acheter du pain et du fromage",'actif'),
@@ -72,5 +77,79 @@ export class TodoService {
 
         return this.findAll()
 
+    }
+
+    async addV2(addData : TodoAddDTO){
+        await this.todoRepository.save(new TodoEntity(addData.name,addData.description));
+    }
+}
+
+@Injectable()
+export class TodoServiceV2 {
+    constructor(@InjectRepository(TodoEntity)
+    private readonly todoRepository: Repository<TodoEntity>,){}
+
+    async findAll (queryParams? : searchTodoDTO){
+        let ans
+        if(queryParams.critere !== undefined){
+            ans = await this.todoRepository.find({ where : [{ name : Like("%"+queryParams.critere+"%") }, {description : Like("%"+queryParams.critere+"%")}]})  
+        }else if( queryParams.statut !== undefined) {
+            ans = await this.todoRepository.find({ where : {status : queryParams.statut}})
+        }else{
+            ans = await this.todoRepository.find()
+        }
+        return ans;
+    }
+
+
+    async add(addData : TodoAddDTO){
+        await this.todoRepository.save(new TodoEntity(addData.name,addData.description));
+    }
+
+
+    async updateTodo(idToFind : string , updateData : TodoEditDTO){
+        const todoFound = await this.todoRepository.preload({ 
+            id : idToFind,
+            name : updateData.name,
+            description : updateData.description,
+            status : updateData.statut
+        });
+
+        if( todoFound !== undefined)    
+            await this.todoRepository.save(todoFound)
+        else 
+            return " User not found !"
+    
+        return "Updated Sucessfully"
+    }
+
+    async deleteTodo(idToFind : string){
+        await this.todoRepository.softDelete(idToFind);
+
+        return "Deleted !"
+    }
+
+    async restoreTodo(idToFind : string){
+        await this.todoRepository.restore(idToFind);
+
+        return "Todo Restored !"        
+    }
+
+    async statsTodo(){
+        const actif = await this.todoRepository.count({ where : { status : TodoStatusEnum.actif}})
+        const waiting = await this.todoRepository.count({ where : { status : TodoStatusEnum.waiting}})
+        const done = await this.todoRepository.count({ where : { status : TodoStatusEnum.done}})
+
+
+        return `actifs : ${actif} / waiting : ${waiting} / done : ${done}`
+    }
+
+    async todoById(id : string){
+        const res = await this.todoRepository.findOne({where : {id : id}})
+
+        if(res === null)
+            return "User Not Found !"
+
+        return res
     }
 }
